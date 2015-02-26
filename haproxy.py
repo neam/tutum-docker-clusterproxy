@@ -1,18 +1,18 @@
 #!/usr/bin/env python
 import logging
 import os
-import time
 import string
 import subprocess
 import sys
 import re
 import socket
+import copy
 from collections import OrderedDict
 
 import requests
+from socketIO_client import SocketIO, BaseNamespace
 
 
-logger = logging.getLogger(__name__)
 
 # Config ENV
 BACKEND_PORT = os.getenv("BACKEND_PORT", os.getenv("PORT", "80"))
@@ -26,7 +26,8 @@ OPTION = os.getenv("OPTION", "redispatch, httplog, dontlognull, forwardfor").spl
 TIMEOUT = os.getenv("TIMEOUT", "connect 5000, client 50000, server 50000").split(",")
 VIRTUAL_HOST = os.getenv("VIRTUAL_HOST", None)
 TUTUM_CONTAINER_API_URL = os.getenv("TUTUM_CONTAINER_API_URL", None)
-POLLING_PERIOD = max(int(os.getenv("POLLING_PERIOD", 30)), 5)
+TUTUM_STREAM_API_HOST = os.getenv("TUTUM_STREAM_API_HOST", "https://stream.tutum.co")
+TUTUM_STREAM_API_PORT = os.getenv("TUTUM_STREAM_API_PORT", 443)
 
 TUTUM_AUTH = os.getenv("TUTUM_AUTH")
 DEBUG = os.getenv("DEBUG", False)
@@ -43,7 +44,9 @@ VIRTUAL_HOST_SUFFIX = "_ENV_VIRTUAL_HOST"
 # Global Var
 HAPROXY_CURRENT_SUBPROCESS = None
 
-endpoint_match = re.compile(r"(?P<proto>tcp|udp):\/\/(?P<addr>[^:]*):(?P<port>.*)")
+logger = logging.getLogger(__name__)
+logging.basicConfig(stream=sys.stdout)
+logging.getLogger(__name__).setLevel(logging.DEBUG if DEBUG else logging.INFO)
 
 
 def get_cfg_text(cfg):
@@ -234,58 +237,123 @@ def update_virtualhost(vhost):
                 vhost[hostname] = value
 
 
-if __name__ == "__main__":
-    logging.basicConfig(stream=sys.stdout)
-    logging.getLogger(__name__).setLevel(logging.DEBUG if DEBUG else logging.INFO)
+class TutumNamespace(BaseNamespace):
+    def generate_cfg_text_from_query(self):
+        vhost = {}
+        r = self.session.get(TUTUM_CONTAINER_API_URL, headers={"Authorization": TUTUM_AUTH})
+        r.raise_for_status()
+        container_details = r.json()
+        self.resource_uri = container_details.get("resource_uri", "")
+        self.service_resource_uri = container_details.get("service", "")
 
-    cfg = create_default_cfg(MAXCONN, MODE)
-    vhost = {}
+        # Calculate backend routes
+        backend_routes = {}
+        for link in container_details.get("linked_to_container", []):
+            for port, endpoint in link.get("endpoints", {}).iteritems():
+                if port == "%s/tcp" % BACKEND_PORT:
+                    backend_routes[link["name"]] = self.endpoint_match.match(endpoint).groupdict()
 
-    # Tell the user the mode of autoupdate we are using, if any
-    if TUTUM_CONTAINER_API_URL:
-        if TUTUM_AUTH:
-            logger.info("HAproxy has access to Tutum API - will reload list of backends every %d seconds",
-                        POLLING_PERIOD)
-        else:
-            logger.warning(
-                "HAproxy doesn't have access to Tutum API and it's running in Tutum - you might want to give "
-                "an API role to this service for automatic backend reconfiguration")
-    else:
-        logger.info("HAproxy is not running in Tutum")
-    session = requests.Session()
-    headers = {"Authorization": TUTUM_AUTH}
+        # Update backend routes
+        update_virtualhost(vhost)
+        cfg = copy.deepcopy(self.cfg)
+        update_cfg(cfg, backend_routes, vhost)
+        cfg_text = get_cfg_text(cfg)
+        return cfg_text
 
-    # Main loop
-    old_text = ""
-    while True:
+    def on_connect(self):
+        logger.info("Socket.io: connected")
         try:
-            if TUTUM_CONTAINER_API_URL and TUTUM_AUTH:
-                # Running on Tutum with API access - fetch updated list of environment variables
-                r = session.get(TUTUM_CONTAINER_API_URL, headers=headers)
-                r.raise_for_status()
-                container_details = r.json()
-
-                backend_routes = {}
-                for link in container_details.get("linked_to_container", []):
-                    for port, endpoint in link.get("endpoints", {}).iteritems():
-                        if port == "%s/tcp" % BACKEND_PORT:
-                            backend_routes[link["name"]] = endpoint_match.match(endpoint).groupdict()
-            else:
-                # No Tutum API access - configuring backends based on static environment variables
-                backend_routes = get_backend_routes(os.environ)
-
-            # Update backend routes
-            update_virtualhost(vhost)
-            update_cfg(cfg, backend_routes, vhost)
-            cfg_text = get_cfg_text(cfg)
-
-            # If cfg changes, write to file
-            if old_text != cfg_text:
-                logger.info("HAProxy configuration has been changed:\n%s" % cfg_text)
-                save_config_file(cfg_text, CONFIG_FILE)
-                reload_haproxy()
-                old_text = cfg_text
+            room = TUTUM_AUTH.split()[-1]
+            logger.info("Socket.io: joined room %s" % room)
+            self.emit("join", {"userPublicToken": room})
         except Exception as e:
             logger.exception("Error: %s" % e)
 
-        time.sleep(POLLING_PERIOD)
+        try:
+            self.old_text = ""
+            self.endpoint_match = re.compile(r"(?P<proto>tcp|udp):\/\/(?P<addr>[^:]*):(?P<port>.*)")
+            self.cfg = create_default_cfg(MAXCONN, MODE)
+            self.session = requests.Session()
+
+            cfg_text = self.generate_cfg_text_from_query()
+            # If cfg changes, write to file and reload haproxy
+            logger.info("HAProxy configuration is initialized to:\n%s" % cfg_text)
+            save_config_file(cfg_text, CONFIG_FILE)
+            self.old_text = cfg_text
+            reload_haproxy()
+        except Exception as e:
+            logger.exception("Error: %s" % e)
+
+    def on_disconnect(self):
+        logger.info("Socket.io: disconnected")
+
+    def on_reconnecting(self):
+        logger.info("Socket.io: reconnected")
+        try:
+            logger.info("Socket.io: linked service status is updated")
+            cfg_text = self.generate_cfg_text_from_query()
+
+            # If cfg changes, write to file and reload haproxy
+            if self.old_text != cfg_text:
+                logger.info("HAProxy configuration has been changed:\n%s" % cfg_text)
+                save_config_file(cfg_text, CONFIG_FILE)
+                self.old_text = cfg_text
+                reload_haproxy()
+        except Exception as e:
+            logger.exception("Error: %s" % e)
+
+    def on_service(self, *args):
+        try:
+            service_details = args[0]
+            is_linked = False
+            for services in service_details.get("data", {}).get("linked_from_service", []):
+                if services.get("from_service", "") == self.service_resource_uri:
+                    is_linked = True
+                    break
+
+            if is_linked:
+                logger.info("Socket.io: linked service status is updated")
+                cfg_text = self.generate_cfg_text_from_query()
+
+                # If cfg changes, write to file and reload haproxy
+                if self.old_text != cfg_text:
+                    logger.info("HAProxy configuration has been changed:\n%s" % cfg_text)
+                    save_config_file(cfg_text, CONFIG_FILE)
+                    self.old_text = cfg_text
+                    reload_haproxy()
+        except Exception as e:
+            logger.exception("Error: %s" % e)
+
+
+def run_haproxy():
+    global cfg, vhost, backend_routes, cfg_text, p
+    cfg = create_default_cfg(MAXCONN, MODE)
+    vhost = {}
+    logger.info("HAproxy is not running in Tutum")
+    backend_routes = get_backend_routes(os.environ)
+    update_virtualhost(vhost)
+    update_cfg(cfg, backend_routes, vhost)
+    cfg_text = get_cfg_text(cfg)
+    logger.info("HAProxy configuration:\n%s" % cfg_text)
+    save_config_file(cfg_text, CONFIG_FILE)
+    logger.info("Launching haproxy")
+    p = subprocess.Popen(HAPROXY_CMD)
+    p.wait()
+
+
+if __name__ == "__main__":
+    try:
+        if TUTUM_CONTAINER_API_URL and TUTUM_AUTH:
+            if not TUTUM_AUTH:
+                logger.warning(
+                    "HAproxy doesn't have access to Tutum API and it's running in Tutum - you might want to give "
+                    "an API role to this service for automatic backend reconfiguration")
+                run_haproxy()
+            else:
+                logger.info("HAproxy has access to Tutum API - will reload list of backends dynamically")
+                socketIO = SocketIO(TUTUM_STREAM_API_HOST, TUTUM_STREAM_API_PORT, TutumNamespace, verify=True)
+                socketIO.wait()
+        else:
+            run_haproxy()
+    except Exception as e:
+        logger.exception("Error: %s" % e)

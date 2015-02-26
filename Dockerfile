@@ -8,7 +8,7 @@ RUN echo 'deb http://ppa.launchpad.net/vbernat/haproxy-1.5/ubuntu trusty main' >
     apt-get update && \
     apt-get install -y --no-install-recommends haproxy python-pip && \
     apt-get clean && \
-    pip install requests==2.2.1 && \
+    pip install socketIO-client==0.6.1 && \
     rm -rf /var/lib/apt/lists/*
 
 # BACKEND_PORT is the port of the app server which is load balanced (also update the EXPOSE directive below)
@@ -24,7 +24,7 @@ ENV MODE http
 ENV BALANCE roundrobin
 
 # maximum number of connections
-ENV MAXCONN 4096
+ENV MAXCONN 512
 
 # list of options separated by commas
 ENV OPTION redispatch, httplog, dontlognull, forwardfor

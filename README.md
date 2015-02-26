@@ -29,7 +29,7 @@ You can overwrite the following HAProxy configuration options:
 * `FRONTEND_PORT` (default: `80`): The port where the load balancer is listening to.
 * `MODE` (default: `http`): Mode of load balancing for HAProxy. Possible values include: `http`, `tcp`, `health`.
 * `BALANCE` (default: `roundrobin`): Load balancing algorithm to use. Possible values include: `roundrobin`, `static-rr`, `source`, `leastconn`.
-* `MAXCONN` (default: `4096`): Sets the maximum per-process number of concurrent connections.
+* `MAXCONN` (default: `512`): Sets the maximum per-process number of concurrent connections.
 * `OPTION` (default: `redispatch`): Comma-separated list of HAProxy `option` entries to the `default` section.
 * `TIMEOUT` (default: `connect 5000,client 50000,server 50000`): Comma-separated list of HAProxy `timeout` entries to the `default` section.
 * `SSL_CERT` (default: `**None**`): An optional certificate to use on the binded port. It should have both the private and public keys content. If set, port 443 will be used to handle HTTPS requests.

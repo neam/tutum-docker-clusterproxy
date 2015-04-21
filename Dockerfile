@@ -41,6 +41,12 @@ ENV TIMEOUT connect 5000, client 50000, server 50000
 # Virtual host
 ENV VIRTUAL_HOST **None**
 
+# Stats port
+ENV STATS_PORT 8088
+
+# Stats authentication
+ENV STATS_AUTH stats:stats
+
 # SSL certificate to use (optional)
 ENV SSL_CERT **None**
 
@@ -52,5 +58,5 @@ ADD haproxy.py /haproxy.py
 ADD run.sh /run.sh
 RUN chmod +x /*.sh
 
-EXPOSE 80 443
+EXPOSE 80 443 8088
 CMD ["/run.sh"]

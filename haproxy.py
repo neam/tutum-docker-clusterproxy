@@ -31,6 +31,8 @@ TIMEOUT = os.getenv("TIMEOUT", "connect 5000, client 50000, server 50000").split
 VIRTUAL_HOST = os.getenv("VIRTUAL_HOST", None)
 TUTUM_CONTAINER_API_URL = os.getenv("TUTUM_CONTAINER_API_URL", None)
 POLLING_PERIOD = max(int(os.getenv("POLLING_PERIOD", 30)), 5)
+STATS_PORT = os.getenv("STATS_PORT", "8088")
+STATS_AUTH = os.getenv("STATS_AUTH", "stats:stats")
 
 TUTUM_AUTH = os.getenv("TUTUM_AUTH")
 DEBUG = os.getenv("DEBUG", False)
@@ -70,6 +72,16 @@ def create_default_cfg(maxconn, mode):
                    "group haproxy",
                    "daemon",
                    "stats socket /var/run/haproxy.stats level admin"],
+        "listen stats": ["bind *:%s" % STATS_PORT,
+                   "mode http",
+                   "stats enable",
+                   "timeout connect 10s",
+                   "timeout client 1m",
+                   "timeout server 1m",
+                   "stats hide-version",
+                   "stats realm Haproxy\ Statistics",
+                   "stats uri /",
+                   "stats auth %s" % STATS_AUTH],
         "defaults": ["log global",
                      "mode %s" % mode]})
     for option in OPTION:

@@ -34,6 +34,7 @@ You can overwrite the following HAProxy configuration options:
 * `MAXCONN` (default: `4096`): Sets the maximum per-process number of concurrent connections.
 * `OPTION` (default: `redispatch`): Comma-separated list of HAProxy `option` entries to the `default` section.
 * `TIMEOUT` (default: `connect 5000,client 50000,server 50000`): Comma-separated list of HAProxy `timeout` entries to the `default` section.
+* `RSYSLOG_DESTINATION` (default: `127.0.0.1`): The rsyslog destination to where haproxy logs are sent
 * `SSL_CERT` (default: `**None**`): An optional certificate to use on the binded port. It should have both the private and public keys content. If set, port 443 will be used to handle HTTPS requests.
 * `SSL_BIND_OPTIONS` (default: `no-sslv3`): Optional. Explicitly set which SSL bind options will be used for the SSL server. This sets the HAProxy `ssl-default-bind-options` configuration setting. The default will allow only TLSv1.0+ to be used on the SSL server.
 * `SSL_BIND_CIPHERS` (default: `None`): Optional. Explicitly set which SSL ciphers will be used for the SSL server. This sets the HAProxy `ssl-default-bind-ciphers` configuration setting.
@@ -139,6 +140,13 @@ When you access `http://www.webapp1.com`, it will show the service running in co
     docker run -d -e VIRTUAL_HOST=node.io --name webapp tutum/hello-world
     docker run -d --link webapp:webapp -e HDR="hdr_end" -p 80:80 tutum/haproxy
 
+#### I want to send all my logs to papertrailapp
+
+Replace `<subdomain>` and `<port>` with your the values matching your papertrailapp account: 
+
+    docker run -d --name web1 tutum/hello-world
+    docker run -d --name web2 tutum/hello-world
+    docker run -it --env RSYSLOG_DESTINATION='<subdomain>.papertrailapp.com:<port>' -p 80:80 -p 8088:8088 --link web1:web1 --link web2:web2 tutum/haproxy
 
 Topologies using virtual hosts
 ------------------------------

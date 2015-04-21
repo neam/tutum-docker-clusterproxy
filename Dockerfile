@@ -11,6 +11,9 @@ RUN echo 'deb http://ppa.launchpad.net/vbernat/haproxy-1.5/ubuntu trusty main' >
     pip install requests==2.2.1 && \
     rm -rf /var/lib/apt/lists/*
 
+# the rsyslog destination to where haproxy logs are sent
+ENV RSYSLOG_DESTINATION 127.0.0.1
+
 # BACKEND_PORT is the port of the app server which is load balanced
 ENV BACKEND_PORT 80
 

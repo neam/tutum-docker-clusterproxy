@@ -38,6 +38,8 @@ You can overwrite the following HAProxy configuration options:
 * `SSL_BIND_OPTIONS` (default: `no-sslv3`): Optional. Explicitly set which SSL bind options will be used for the SSL server. This sets the HAProxy `ssl-default-bind-options` configuration setting. The default will allow only TLSv1.0+ to be used on the SSL server.
 * `SSL_BIND_CIPHERS` (default: `None`): Optional. Explicitly set which SSL ciphers will be used for the SSL server. This sets the HAProxy `ssl-default-bind-ciphers` configuration setting.
 * `VIRTUAL_HOST` (default: `**None**`): Optional. Let HAProxy route by domain name. Format `LINK_ALIAS=DOMAIN`, comma separated.
+* `STATS_PORT` (default: `8088`): Port for the haproxy stats section. If this port is published, stats can be accessed at `http://<host-ip>:<STATS_PORT>/`
+* `STATS_AUTH` (default: `stats:stats`): Username and password required to access the haproxy stats.
 
 Check [the HAProxy configuration manual](http://haproxy.1wt.eu/download/1.4/doc/configuration.txt) for more information on the above.
 

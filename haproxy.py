@@ -15,6 +15,7 @@ import requests
 logger = logging.getLogger(__name__)
 
 # Config ENV
+RSYSLOG_DESTINATION = os.getenv("RSYSLOG_DESTINATION", "127.0.0.1")
 BACKEND_PORT = os.getenv("PORT", os.getenv("BACKEND_PORT", "80"))
 BACKEND_PORTS = [x.strip() for x in os.getenv("BACKEND_PORTS", BACKEND_PORT).split(",")]
 FRONTEND_PORT = os.getenv("FRONTEND_PORT", "80")
@@ -63,8 +64,9 @@ def get_cfg_text(cfg):
 
 def create_default_cfg(maxconn, mode):
     cfg = OrderedDict({
-        "global": ["log 127.0.0.1 local0",
-                   "log 127.0.0.1 local1 notice",
+        "global": ["log %s local0" % RSYSLOG_DESTINATION,
+                   "log %s local1 notice" % RSYSLOG_DESTINATION,
+                   "log-send-hostname",
                    "maxconn %s" % maxconn,
                    "tune.ssl.default-dh-param 2048",
                    "pidfile /var/run/haproxy.pid",

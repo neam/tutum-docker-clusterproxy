@@ -31,7 +31,7 @@ TIMEOUT = os.getenv("TIMEOUT", "connect 5000, client 50000, server 50000").split
 VIRTUAL_HOST = os.getenv("VIRTUAL_HOST", None)
 TUTUM_CONTAINER_API_URL = os.getenv("TUTUM_CONTAINER_API_URL", None)
 POLLING_PERIOD = max(int(os.getenv("POLLING_PERIOD", 30)), 5)
-STATS_PORT = os.getenv("STATS_PORT", "8088")
+STATS_PORT = os.getenv("STATS_PORT", "1936")
 STATS_AUTH = os.getenv("STATS_AUTH", "stats:stats")
 
 TUTUM_AUTH = os.getenv("TUTUM_AUTH")

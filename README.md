@@ -146,7 +146,7 @@ Replace `<subdomain>` and `<port>` with your the values matching your papertrail
 
     docker run -d --name web1 tutum/hello-world
     docker run -d --name web2 tutum/hello-world
-    docker run -it --env RSYSLOG_DESTINATION='<subdomain>.papertrailapp.com:<port>' -p 80:80 -p 8088:8088 --link web1:web1 --link web2:web2 tutum/haproxy
+    docker run -it --env RSYSLOG_DESTINATION='<subdomain>.papertrailapp.com:<port>' -p 80:80 --link web1:web1 --link web2:web2 tutum/haproxy
 
 Topologies using virtual hosts
 ------------------------------
